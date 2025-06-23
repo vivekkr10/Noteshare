@@ -8,7 +8,7 @@ const fs = require('fs');
 const User = require('../models/user');
 const Note = require('../models/notes');
 const Otp = require("../models/otp");
-const sendOtp = require("../utils/sendOtp");
+const { sendOTPEmail } = require("../utils/sendOtp");
 const { sendOTPSMS } = require("../utils/sendSMS");
 const generateOTP = require("../utils/generateOTP");
 const mongoose = require("mongoose");
@@ -52,6 +52,7 @@ router.post("/register", async (req, res) => {
   const { name, email, password, phone } = req.body;
 
   try {
+    // Check if email already exists
     const existing = await User.findOne({ $or: [{ email }, { phone }] });
     if (existing) {
       return res.status(400).json({ message: "Email or phone already registered" });
@@ -59,7 +60,8 @@ router.post("/register", async (req, res) => {
 
     const otp = generateOTP();
 
-    await sendOtp({ email, phone, otp });  // ✅ unified send function
+    if (email) await sendOTPEmail(email, otp);
+    if (phone) await sendOTPSMS(phone, otp);
 
     await Otp.create({ email, phone, code: otp, password, name });
 
@@ -73,8 +75,8 @@ router.post("/send-otp", async (req, res) => {
   const { email, phone } = req.body;
   try {
     const otp = generateOTP();
-
-    await sendOtp({ email, phone, otp });
+    if (email) await sendOTPEmail(email, otp);
+    if (phone) await sendOTPSMS(phone, otp);
 
     await Otp.create({ email, phone, code: otp });
 
