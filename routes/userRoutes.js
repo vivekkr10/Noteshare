@@ -1,19 +1,18 @@
 // userRoutes.js
-const express = require('express');
-const multer = require('multer');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const path = require('path');
-const fs = require('fs');
-const User = require('../models/user');
-const Note = require('../models/notes');
+const express = require("express");
+const multer = require("multer");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const path = require("path");
+const fs = require("fs");
+const User = require("../models/user");
+const Note = require("../models/notes");
 const Otp = require("../models/otp");
 const { sendOTPEmail } = require("../utils/sendOTP");
 const { sendOTPSMS } = require("../utils/sendSMS");
 const generateOTP = require("../utils/generateOTP");
 const mongoose = require("mongoose");
 // const Razorpay = require('razorpay');
-
 
 // const razorpay = new Razorpay({
 //   key_id: process.env.RAZORPAY_KEY_ID,
@@ -24,24 +23,24 @@ const router = express.Router();
 const loggedInUsers = new Set();
 
 // Ensure uploads directory exists
-const notesDir = path.join(__dirname, '..', 'uploads', 'notes');
+const notesDir = path.join(__dirname, "..", "uploads", "notes");
 if (!fs.existsSync(notesDir)) fs.mkdirSync(notesDir, { recursive: true });
 
-const blockedTypes = ['video/', 'audio/'];
+const blockedTypes = ["video/", "audio/"];
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, 'uploads/notes/');
+    cb(null, "uploads/notes/");
   },
   filename: function (req, file, cb) {
-    cb(null, Date.now() + '-' + file.originalname);
-  }
+    cb(null, Date.now() + "-" + file.originalname);
+  },
 });
 
 const fileFilter = (req, file, cb) => {
-  const isBlocked = blockedTypes.some(type => file.mimetype.startsWith(type));
+  const isBlocked = blockedTypes.some((type) => file.mimetype.startsWith(type));
   if (isBlocked) {
-    return cb(new Error('Video and audio files are not allowed'), false);
+    return cb(new Error("Video and audio files are not allowed"), false);
   }
   cb(null, true);
 };
@@ -55,7 +54,9 @@ router.post("/register", async (req, res) => {
     // Check if email already exists
     const existing = await User.findOne({ $or: [{ email }, { phone }] });
     if (existing) {
-      return res.status(400).json({ message: "Email or phone already registered" });
+      return res
+        .status(400)
+        .json({ message: "Email or phone already registered" });
     }
 
     const otp = generateOTP();
@@ -102,12 +103,13 @@ router.post("/verify-otp", async (req, res) => {
   res.status(200).json({ message: "OTP verified successfully" });
 });
 
-
 router.post("/set-username", async (req, res) => {
   const { username, email, phone } = req.body;
 
   if (!username || (!email && !phone)) {
-    return res.status(400).json({ message: "Username and email or phone required" });
+    return res
+      .status(400)
+      .json({ message: "Username and email or phone required" });
   }
 
   try {
@@ -135,74 +137,91 @@ router.post("/set-username", async (req, res) => {
     await Otp.deleteOne({ _id: otpRecord._id });
 
     res.status(201).json({ message: "Registration complete", user: newUser });
-
   } catch (err) {
-    res.status(500).json({ message: "Username setup failed", error: err.message });
+    res
+      .status(500)
+      .json({ message: "Username setup failed", error: err.message });
   }
 });
 
-
-router.post('/login', async (req, res) => {
+router.post("/login", async (req, res) => {
   const { email, password } = req.body;
   try {
     const user = await User.findOne({ email });
-    if (!user) return res.status(404).json('User not found');
+    if (!user) return res.status(404).json("User not found");
 
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(400).json('Invalid credentials');
+    if (!isMatch) return res.status(400).json("Invalid credentials");
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "1h",
+    });
 
     res.status(200).json({
       token,
-      user: { id: user._id, username: user.username, email: user.email }
+      user: { id: user._id, username: user.username, email: user.email },
     });
   } catch (err) {
-    res.status(500).json({ error: err.message || 'Internal Server Error' });
+    res.status(500).json({ error: err.message || "Internal Server Error" });
   }
 });
 
-router.post("/upload", upload.fields([
-  { name: 'file', maxCount: 1 },
-  { name: 'image', maxCount: 1 }
-]), async (req, res) => {
-  try {
-    const filePath = req.files?.file?.[0]?.path?.replace(/\\/g, '/');
-    const imagePath = req.files?.image?.[0]?.path?.replace(/\\/g, '/');
-    const price = parseInt(req.body.price || 0);
+router.post(
+  "/upload",
+  upload.fields([
+    { name: "file", maxCount: 1 },
+    { name: "image", maxCount: 1 },
+  ]),
+  async (req, res) => {
+    try {
+      const filePath = req.files?.file?.[0]?.path?.replace(/\\/g, "/");
+      const imagePath = req.files?.image?.[0]?.path?.replace(/\\/g, "/");
+      const price = parseInt(req.body.price || 0);
 
-    if (!filePath) return res.status(400).json({ error: "At least one file is required." });
-    if (price !== 0 && (price < 1 || price > 100)) {
-      return res.status(400).json({ error: "Price must be 0 (free) or between 1 and 100." });
+      if (!filePath)
+        return res
+          .status(400)
+          .json({ error: "At least one file is required." });
+      if (price !== 0 && (price < 1 || price > 100)) {
+        return res
+          .status(400)
+          .json({ error: "Price must be 0 (free) or between 1 and 100." });
       }
 
-    const userId = req.body.uploader;
-    const userNotes = await Note.find({ uploader: userId });
-    const totalNotes = userNotes.length;
-    const freeNotes = userNotes.filter(n => n.price === 0).length;
+      const userId = req.body.uploader;
+      const userNotes = await Note.find({ uploader: userId });
+      const totalNotes = userNotes.length;
+      const freeNotes = userNotes.filter((n) => n.price === 0).length;
 
-    if (price === 0 && (freeNotes >= 2 || totalNotes >= 10 && freeNotes >= Math.floor(totalNotes / 5))) {
-      return res.status(400).json({ error: "You can only upload 2 free notes out of every 10." });
+      if (
+        price === 0 &&
+        (freeNotes >= 2 ||
+          (totalNotes >= 10 && freeNotes >= Math.floor(totalNotes / 5)))
+      ) {
+        return res
+          .status(400)
+          .json({ error: "You can only upload 2 free notes out of every 10." });
+      }
+
+      const newNote = new Note({
+        title: req.body.title,
+        subject: req.body.subject,
+        uploader: req.body.uploader,
+        image: imagePath || "",
+        fileUrl: filePath,
+        price: price,
+      });
+
+      await newNote.save();
+      res.status(200).json(newNote);
+    } catch (error) {
+      res.status(500).json({ error: error.message || "Upload failed." });
     }
-
-    const newNote = new Note({
-      title: req.body.title,
-      subject: req.body.subject,
-      uploader: req.body.uploader,
-      image: imagePath || '',
-      fileUrl: filePath,
-      price: price
-    });
-
-    await newNote.save();
-    res.status(200).json(newNote);
-  } catch (error) {
-    res.status(500).json({ error: error.message || "Upload failed." });
   }
-});
+);
 
 // Views
-router.post('/view/:id', async (req, res) => {
+router.post("/view/:id", async (req, res) => {
   try {
     const note = await Note.findByIdAndUpdate(
       req.params.id,
@@ -211,11 +230,11 @@ router.post('/view/:id', async (req, res) => {
     );
     res.status(200).json(note);
   } catch (err) {
-    res.status(500).json({ message: 'Failed to update views' });
+    res.status(500).json({ message: "Failed to update views" });
   }
 });
 
-// Home 
+// Home
 router.get("/", async (req, res) => {
   try {
     const latestNotes = await Note.find()
@@ -238,6 +257,26 @@ router.get("/", async (req, res) => {
   }
 });
 
+// GET user profile info
+router.get("/profile/:id", async (req, res) => {
+  const { id } = req.params;
+  console.log("User ID from URL:", id);
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ message: "Invalid User ID" });
+  }
+
+  try {
+    const user = await User.findById(id).select("-password");
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    res.status(200).json(user);
+  } catch (err) {
+    res
+      .status(500)
+      .json({ message: "Error fetching profile", error: err.message });
+  }
+});
+
 router.get("/home/:userId", async (req, res) => {
   try {
     const userId = new mongoose.Types.ObjectId(req.params.userId);
@@ -255,7 +294,9 @@ router.get("/home/:userId", async (req, res) => {
       popular: popularNote,
     });
   } catch (error) {
-    res.status(500).json({ message: "Failed to load user home data", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Failed to load user home data", error: error.message });
   }
 });
 
@@ -275,7 +316,7 @@ router.get("/download/:id", async (req, res) => {
       });
     }
 
-    const filePath = path.resolve(__dirname, '..', note.fileUrl);
+    const filePath = path.resolve(__dirname, "..", note.fileUrl);
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ message: "File not found on server" });
     }
@@ -286,20 +327,25 @@ router.get("/download/:id", async (req, res) => {
   }
 });
 
-
-
 router.get("/notes", async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page) || 1, 1);
     const limit = Math.min(parseInt(req.query.limit) || 10, 100);
-    const skip = (page - 1) * limit
+    const skip = (page - 1) * limit;
     const [notes, total] = await Promise.all([
-      Note.find().sort({ createdAt: -1 }).skip(skip).limit(limit).select('-file').populate("uploader", "username profilePicture"),Note.countDocuments()]);
-      res.status(200).json({
+      Note.find()
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .select("-file")
+        .populate("uploader", "username profilePicture"),
+      Note.countDocuments(),
+    ]);
+    res.status(200).json({
       notes,
       currentPage: page,
       totalPages: Math.ceil(total / limit),
-      totalNotes: total
+      totalNotes: total,
     });
   } catch (err) {
     console.error("❌ Error in /notes:", err);
@@ -307,18 +353,21 @@ router.get("/notes", async (req, res) => {
   }
 });
 
-
 router.get("/notes/:id", async (req, res) => {
   try {
     const userId = req.query.userId;
 
-    const note = await Note.findById(req.params.id).populate("uploader", "username profilePicture");
+    const note = await Note.findById(req.params.id).populate(
+      "uploader",
+      "username profilePicture"
+    );
 
     if (!note) {
       return res.status(404).json({ message: "Note not found" });
     }
 
-    const uploaderId = note.uploader?._id?.toString() || note.uploader?.toString();
+    const uploaderId =
+      note.uploader?._id?.toString() || note.uploader?.toString();
 
     if (userId && uploaderId && userId !== uploaderId) {
       await Note.findByIdAndUpdate(note._id, { $inc: { views: 1 } });
@@ -332,10 +381,8 @@ router.get("/notes/:id", async (req, res) => {
   }
 });
 
-
-
 // Count notes + total views and downloads uploaded by user
-router.get('/notes/stats/:userId', async (req, res) => {
+router.get("/notes/stats/:userId", async (req, res) => {
   try {
     const userId = new mongoose.Types.ObjectId(req.params.userId); // 👈 Convert string to ObjectId
 
@@ -343,14 +390,18 @@ router.get('/notes/stats/:userId', async (req, res) => {
 
     const count = notes.length;
     const views = notes.reduce((acc, note) => acc + (note.views || 0), 0);
-    const downloads = notes.reduce((acc, note) => acc + (note.downloads || 0), 0);
+    const downloads = notes.reduce(
+      (acc, note) => acc + (note.downloads || 0),
+      0
+    );
 
     res.status(200).json({ count, views, downloads });
   } catch (err) {
-    res.status(500).json({ message: "Failed to get note stats", error: err.message });
+    res
+      .status(500)
+      .json({ message: "Failed to get note stats", error: err.message });
   }
 });
-
 
 // Get all notes by a user, including total views and downloads
 router.get("/notes/user/:userId", async (req, res) => {
@@ -360,7 +411,10 @@ router.get("/notes/user/:userId", async (req, res) => {
     const notes = await Note.find({ uploader: userId }).sort({ createdAt: -1 });
 
     const totalViews = notes.reduce((acc, note) => acc + (note.views || 0), 0);
-    const totalDownloads = notes.reduce((acc, note) => acc + (note.downloads || 0), 0);
+    const totalDownloads = notes.reduce(
+      (acc, note) => acc + (note.downloads || 0),
+      0
+    );
 
     res.status(200).json({
       notes,
@@ -368,7 +422,9 @@ router.get("/notes/user/:userId", async (req, res) => {
       totalDownloads,
     });
   } catch (err) {
-    res.status(500).json({ message: "Failed to fetch user notes", error: err.message });
+    res
+      .status(500)
+      .json({ message: "Failed to fetch user notes", error: err.message });
   }
 });
 
@@ -425,9 +481,5 @@ router.get("/notes/user/:userId", async (req, res) => {
 //     return res.status(500).json({ error: err.message || "Something went wrong." });
 //   }
 // });
-
-module.exports = router;
-
-
 
 module.exports = router;
